@@ -774,3 +774,127 @@ void set_pipe_default(int fd_prev[],int fd_next[]){
   }
 
 }
+int pipe_check(char *args[]){
+  int count=0;
+  for (size_t i = 0; args[i]!=NULL; i++)
+    if(strcmp(args[i],"|")==0)
+      count++;
+
+  if(count!=pipe_count){
+    perror("Invalid use of pipe");
+    return -1;
+  }
+  return 1;
+
+
+}
+int main(void)
+{
+
+            struct sigaction action_ctrlz;
+            int status;
+            action_ctrlz.sa_handler=catchCtrlZ;
+            action_ctrlz.sa_flags=0;//----------------------------------------------------------------
+            status=sigemptyset(&action_ctrlz.sa_mask);
+            if(status==-1)
+              perror("Failed");
+            status=sigaction(SIGTSTP,&action_ctrlz,NULL);
+            if(status==-1)
+              perror("Failed");
+
+            char command[MAX_LINE];
+            pid_t childpid;
+            char inputBuffer[MAX_LINE]; /*buffer to hold command entered */
+            int background; /* equals 1 if a command is followed by '&' */
+
+            char *args[MAX_LINE/2 + 1]; /*command line arguments */
+            while (1){
+                        //wait_background_childs(&pid_head,1);
+                        wait_background_childs(&pid_head,1);
+                        cond_input=0;
+                        cond_output=0;
+                        pipe_count=0;
+                        fflush(stdout);
+                        background = 0;
+                        printf("myshell: ");
+                        fflush(stdout);
+
+                        /*setup() calls exit() when Control-D is entered */
+                        fflush(stdin);
+                        setup(inputBuffer, args, &background,1,NULL);
+
+
+                        printf("-----------------------------------------------\n");
+                        if(args[0]==NULL){
+                          perror("please enter something");
+                          continue;
+                        }
+
+                        if(search(args,command)&&!cond_input&&!cond_output&&pipe_count==0){
+                          setup(inputBuffer,args,&background,0,command);
+                        }
+                        if(strcmp(args[0],"alias")==0 && args[1]==NULL){
+                          perror("You must enter some command with alias");
+                          continue;
+                        }
+
+                        if(strcmp(args[0],"alias")==0 && strcmp(args[1],"-l")==0){
+                          if(args[2]!=NULL){
+                            perror("Please only enter \"alias -l\" ");
+                            continue;
+                          }
+                          print_alias_list();//
+                          continue;
+                        }
+                        if(strcmp(args[0],"alias")==0){
+                          if(strstr(args[1],"\"")==NULL){
+                            perror("Invalid input");
+                            continue;
+                          }
+                          alias_list(user_input);//TODO check the args[1] in path environment
+                          continue;
+                        }
+
+                        if(strcmp(args[0],"unalias")==0){
+                          while(search(args+1,command))
+                            deleteCommand(args[1]);
+                          continue;
+                        }
+
+                        if(pipe_count>0){
+                          my_pipe(args,&background);
+                          continue;
+                        }
+                        if(cond_input||cond_output){
+                          redirection(args,&background,NULL,NULL);
+                          continue;
+                        }
+                        if(strcmp(args[0],"fg")==0 && args[1]==NULL){
+                            if(wait_background_childs(&pid_head,0)==0)
+                              continue;
+                            continue;
+                        }
+                        if(strcmp(args[0],"clr")==0 && args[1]==NULL){
+                          system("clear");
+                          continue;
+                        }
+                        if(strcmp(args[0],"exit")==0 && args[1]==NULL){
+                          if(pid_head==NULL)
+                            return 1;
+                          perror("You can NOT exit program because there exist some background processes \n");
+                          print_pid_list(&pid_head);
+                          continue;
+                        }
+                        if(args[0]!=NULL){
+                          callCommand(args,&background,"","",0,NULL,NULL);
+
+                        }
+
+
+                        /** the steps are:
+                        (1) fork a child process using fork()
+                        (2) the child process will invoke execv()
+						(3) if background == 0, the parent will wait,
+                        otherwise it will invoke the setup() function again. */
+            }
+}
