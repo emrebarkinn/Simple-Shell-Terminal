@@ -324,3 +324,144 @@ void alias_list(char *input){
 
   push(alias_name,command);
 }
+void check_file_signs(char *args[]){
+  cond_input=0;
+  cond_output=0;
+  for (size_t i = 0; args[i]!=0; i++) {
+    if(strstr(args[i],"<")!=NULL)
+      cond_input=1;
+    if(strstr(args[i],">")!=NULL)
+      cond_output=1;
+  }
+}
+void checkPaths(char *arg,char location[128]){
+
+  const char* paths =getenv("PATH");
+  int j=0;
+
+  for (int i = 0;i<strlen(paths); i++) {
+
+    if(paths[i]==':'){
+      strcat(location,"/");
+      strcat(location,arg);
+
+
+      if( access( location, F_OK ) != -1 ) {
+
+        return;
+      }
+      j=0;
+      strcpy(location,"");
+
+    }else {
+      location[j]=paths[i];
+      j++;
+      location[j]='\0';
+
+    }
+  }
+  strcpy(location,"");
+  return;
+}
+int wait_childpid(pid_t childpid,int background){
+
+  if(background==0){
+    deletePid(&pid_head,childpid);
+    push_pid(&pid_head_fg,childpid);
+    if(waitpid(childpid,NULL,0)>0){
+
+      deletePid(&pid_head_fg,childpid);
+    }
+    return 1;
+  }
+  else{
+    deletePid(&pid_head_fg,childpid);
+    push_pid(&pid_head,childpid);
+    if(waitpid(childpid,NULL,WNOHANG)>0){
+      printf("background process is finished and it's id is=%d\n",childpid);
+      deletePid(&pid_head,childpid);
+    }
+    return 0;
+  }
+
+}
+int wait_background_childs(struct childpid_list **head,int background){
+  struct childpid_list* temp=*head;
+  int count=0;
+  while(temp!=NULL){
+    wait_childpid(temp->childpid,background);
+    temp=temp->next;
+    count++;
+  }
+  return count;
+
+}
+int set_io_files(char* input_file,char* output_file,int file_cond){
+  int fd=0;
+
+  //printf("---------%s\n",input_file);
+  //printf("---------%s\n",output_file);
+
+  if(strcmp(input_file,"")!=0 ){
+
+    fd = open(input_file, CREATE_FLAGS_READ, CREATE_MODE);
+
+    if (fd == -1) {
+      perror("Failed to open my.file");
+      exit(EXIT_FAILURE);
+    }
+
+    if (dup2(fd, STDIN_FILENO) == -1) {
+      perror("Failed to redirect standard output");
+      return 1;
+    }
+
+    if (close(fd) == -1) {
+      perror("Failed to close the file");
+      return 1;
+    }
+
+  }
+  if(strcmp(output_file,"")!=0){
+    //printf("----------------------%d\n",file_cond );
+    if(file_cond==0||file_cond==2)
+      fd = open(output_file, CREATE_FLAGS_TRUNC, CREATE_MODE);
+    else
+      fd = open(output_file, CREATE_FLAGS_APPEND, CREATE_MODE);
+
+    if (fd == -1) {
+      perror("Failed to open my.filee");
+      exit(EXIT_FAILURE);
+    }
+    if(file_cond==2){
+      if (dup2(fd, STDERR_FILENO) == -1) {
+        perror("Failed to redirect standard output");
+        return 1;
+      }
+    }else{
+      if (dup2(fd, STDOUT_FILENO) == -1) {
+        perror("Failed to redirect standard output");
+        return 1;
+      }
+    }
+
+    if (close(fd) == -1) {
+      perror("Failed to close the file");
+      return 1;
+    }
+  }
+}
+void set_background(char *args[],int *background){
+  int i;
+  for (i = 0; args[i]!=NULL; i++) {
+
+  }
+  if(strcmp(args[i-1],"&")==0){
+    *background=1;
+    args[i-1]=NULL;
+  }else{
+    *background=0;
+  }
+  return;
+}
+
