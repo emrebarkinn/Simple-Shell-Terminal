@@ -465,3 +465,312 @@ void set_background(char *args[],int *background){
   return;
 }
 
+void set_pipe_default(int[],int[]);
+
+
+pid_t callCommand(char *args[],int *background,char* input_file,char* output_file,int file_cond,int fd_prev[2],int fd_next[2]){
+  char location[128]="";
+  char errorMesage[100];
+  checkPaths(args[0],location);// searchs command name in every PATH environment
+  set_background(args,background); // it checks the last argument of argument array and if it equals to '&' this function will make background varianle null
+                                  // and erase that '&' from argument array
+
+  if(strcmp(location,"")==0){
+
+    sprintf(errorMesage,"THERE IS NO PATH FOR %s\n",args[0]);
+    perror(errorMesage);
+    return -2;
+  }
+  pid_t childpid=0;
+  childpid=fork();
+  if(childpid==-1){
+    perror("Fork failed");
+    return -1;
+  }
+
+  if(childpid==0){
+    if(pipe_count>0){
+      set_pipe_default(fd_prev,fd_next);
+    }
+    set_io_files(input_file,output_file,file_cond);
+
+      execl(location,args[0],args[1],args[2],args[3],args[4],args[5],args[6],args[7],args[8],args[9],args[10],args[11],args[12],args[13],args[14],args[15],args[16],args[17],args[18],args[19],NULL);
+      exit -1;
+
+  }
+  if(pipe_count==0){
+    if(wait_childpid(childpid,*background)==0) //Parent will wait childprocess. If background is 1 then parent wont wait the child(using WNOHANG).
+                                                // it also add the process ids to background and foreground
+      return childpid;
+
+  }else
+    push_pid(&pid_head_fg,childpid);
+
+
+  return 1;
+
+}
+void catchCtrlZ(int signalNum){
+  if(pid_head_fg==NULL){
+    perror("There is no foreground process");
+    return;
+  }
+  pid_t temp=pid_head_fg->childpid;
+  deletePid(&pid_head_fg,pid_head_fg->childpid);
+  //perror("0");
+  kill(temp,SIGTSTP);//TODO may need to control stopped process
+}
+int redirection(char *args[],int *background,int fd_prev[2],int fd_next[2]){
+int i=0;
+check_file_signs(args); //error check
+char *new_args[MAX_LINE/2];
+int cond=0;
+for (size_t i = 0; i<MAX_LINE/2; i++) {
+  new_args[i]=(char *) malloc(sizeof(char)*MAX_LINE);
+}
+char input_file[MAX_LINE/2 + 1]="";
+char output_file[MAX_LINE/2 + 1]="";
+char inputBuffer[MAX_LINE];
+
+char command[MAX_LINE];
+inputBuffer[0]='\0';
+command[0]='\0';
+int file_cond=0; //TRUNC will used
+  if(cond_input){
+
+    for(i=0;cond<2&&args[i]!=NULL ;i++){
+      if((strstr(args[i],"<")!=NULL || strstr(args[i],">")!=NULL )&&cond==1){
+        perror("You can not enter consecutive file redirection symbols which are seperated by white spaces");
+        return -1;
+      }
+
+      if(cond==1){
+        cond++;
+
+        if(args[i]==NULL){
+          perror("Please enter a input file name\n");
+        }
+
+        strcpy(input_file,args[i]);
+        i--;
+        break;
+      }
+      if(strstr(args[i],"<")==NULL){
+        strcpy(new_args[i],args[i]);
+      }else if(strstr(args[i],"<")!=NULL){ // if contains <
+        cond=1;
+        if(strcmp(args[i],"<")!=0){
+          perror("You must use single and only \"<\" for input redirection.\nAnyway i take it as single \"<\" :)\n");
+        }
+
+      }
+
+    }
+    new_args[i]=NULL;
+  }
+  cond=0;
+  if(cond_output){
+    for(i=0; cond<2&&args[i]!=NULL;i++){
+      if((strstr(args[i],"<")!=NULL || strstr(args[i],">")!=NULL )&&cond==1){
+        perror("You can not enter consecutive file redirection symbols which are seperated by white spaces");
+        return -1;
+      }
+
+      if(cond==1){
+        cond++;
+
+        if(args[i]==NULL){
+          perror("Please enter a input file name\n");
+        }
+        strcpy(output_file,args[i]);
+        i--;
+        break;
+      }
+
+      if(strstr(args[i],">")==NULL && cond_input==0 ){
+        if(cond_input==0)
+        strcpy(new_args[i],args[i]);
+      }else if(strstr(args[i],">")!=NULL){
+        cond=1;
+        if(strcmp(args[i],">>")==0)
+          file_cond=1;//TODO for append
+        else if(strcmp(args[i],"2>")==0)
+          file_cond=2;//for use dup2 for STDERR
+        else if(strcmp(args[i],">")==0)
+          file_cond=0;
+        else
+          perror("You can use \">\",\">>\",\"2>\" for input redirection.\nAnyway i take it as single \">\" :)");
+      }
+
+    }
+    if(cond_input==0)
+    new_args[i]=NULL;
+  }/*
+  for (size_t i = 0; new_args[i]!=NULL; i++) {
+    printf("%s\n",new_args[i] );
+  }*/
+  //printf("%s\n",input_file);
+  //printf("%s\n",output_file);
+  //printf("%d ---out:%d\n",cond_input,cond_output);
+  int temp_cond_input=cond_input;
+  int temp_cond_output=cond_output;
+  int temp_background=*background;
+  int temp_pipe_count=pipe_count;
+  if (pipe_count>0)
+  if(search(new_args,command)){
+    setup(inputBuffer,new_args,background,0,command);
+    cond_input=temp_cond_input;
+    cond_output=temp_cond_output;
+    *background=temp_background;
+    pipe_count=temp_pipe_count;
+  }
+  //printf("%d ---out:%d\n",cond_input,cond_output);
+  //file_cond=cond_input+cond_output;
+  //printf("%s\n",output_file );
+    if(cond_input|cond_output)
+    callCommand(new_args,background,input_file,output_file,file_cond,fd_prev,fd_next);
+    else
+    callCommand(args,background,input_file,output_file,file_cond,fd_prev,fd_next);
+  /*
+  for (size_t i = 0; i<MAX_LINE/2; i++) {
+    free(new_args[i]);
+  }
+  */
+  return 1;
+}
+
+int pipe_check(char *[]);
+int my_pipe(char *args[],int *background){
+  if(pipe_count==0||pipe_check(args)==-1)
+  return -1;
+  //fflush(stdin);
+  //fflush(stdout);
+  int fd[pipe_count][2];
+
+  char inputBuffer[MAX_LINE];
+
+  char command[MAX_LINE];
+  char *new_args[MAX_LINE/2];
+
+  int temp_pipe_count=pipe_count;
+  int temp_background=*background;
+  for (size_t i = 0; i<MAX_LINE/2; i++) {
+    new_args[i]=(char *) malloc(sizeof(char)*MAX_LINE);
+  }
+  char *temp;
+
+  int pipe_cond=0;
+  int prev_i;
+  int i = 0;
+  int j=0;
+
+  for (i = 0; args[i]!=NULL; i++) {
+    if(strcmp(args[i],"|")==0){
+      if(j==0){
+        perror("Empty arguments on between pipes");
+        return -1;
+      }
+      prev_i=i;
+      temp=new_args[j];
+      new_args[j]=NULL;
+      //fflush(stdin);
+      //fflush(stdout);
+
+      inputBuffer[0]='\0';
+      command[0]='\0';
+
+      if(search(new_args,command)){
+        setup(inputBuffer,new_args,background,0,command);
+        pipe_count=temp_pipe_count;
+        *background=temp_background;
+      }
+
+      pipe(fd[pipe_cond]);
+      if(pipe_cond==0){  //first command
+        redirection(new_args,background,NULL,fd[pipe_cond]);
+        //callCommand(new_args,background,"","",-1,NULL,fd[pipe_cond]);
+
+      }else// middle commands
+        redirection(new_args,background,fd[pipe_cond-1],fd[pipe_cond]);
+        //callCommand(new_args,background,"","",-1,fd[pipe_cond-1],fd[pipe_cond]);
+
+      if(pipe_cond!=0){
+        if(close(fd[pipe_cond-1][0])==-1||close(fd[pipe_cond-1][1])==-1)
+          perror("Failed to close pipe");
+      }
+      pipe_cond++;
+      new_args[j]=temp;
+      for (size_t d = 0; d < j; d++) {
+        new_args[d][0]='\0';
+      }
+
+      j=0;
+      continue;
+    }
+    strcpy(new_args[j],args[i]);
+    j++;
+
+  }
+  if(j==0){
+    perror("Empty argument on pipe ");
+    return -1;
+  }
+  new_args[j]=NULL;
+
+  inputBuffer[0]='\0';
+  command[0]='\0';
+ ///////////////////////////////////7 last command
+  if(search(new_args,command)){//checks alias
+    setup(inputBuffer,new_args,background,0,command);
+    pipe_count=temp_pipe_count;
+    *background=temp_background;
+  }
+  redirection(new_args,background,fd[pipe_cond-1],NULL);
+  //callCommand(new_args,background,"","",-1,fd[pipe_cond-1],NULL);
+  if(close(fd[pipe_cond-1][0])==-1||close(fd[pipe_cond-1][1])==-1)
+    perror("Failed to close pipe1");
+
+  struct childpid_list* temp_list=pid_head_fg;
+
+  while(temp_list!=NULL){
+    wait_childpid(temp_list->childpid,*background);
+    temp_list=temp_list->next;
+  }
+
+  return 1;
+}
+void set_pipe_default(int fd_prev[],int fd_next[]){
+
+  if(fd_next!=NULL && fd_prev==NULL){
+
+    if(dup2(fd_next[1], STDOUT_FILENO)==-1)
+      perror("Failed to redirect");
+
+
+    if(close(fd_next[0])==-1||close(fd_next[1])==-1)
+      perror("Failed to close pipe");
+
+  }else if(fd_next!=NULL && fd_prev!=NULL){
+
+    if(dup2(fd_prev[0], STDIN_FILENO)==-1)
+      perror("Failed to redirect");
+    if(dup2(fd_next[1], STDOUT_FILENO)==-1)
+      perror("Failed to redirect");
+
+
+    if(close(fd_next[0])==-1||close(fd_next[1])==-1)
+      perror("Failed to close pipe");
+    if(close(fd_prev[0])==-1||close(fd_prev[1])==-1)
+      perror("Failed to close pipe");
+
+  }else if(fd_prev!=NULL){
+
+    if(dup2(fd_prev[0], STDIN_FILENO)==-1)
+      perror("Failed to redirect");
+
+    if(close(fd_prev[0])==-1||close(fd_prev[1])==-1)
+      perror("Failed to close pipe");
+
+  }
+
+}
