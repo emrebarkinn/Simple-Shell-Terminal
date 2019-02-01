@@ -153,3 +153,174 @@ void print_pid_list(struct childpid_list** head_ref){
     temp_head=temp_head->next;
   }
 }
+//-----------------------------------------------------Alias linked list
+struct alias_list
+{
+    char alias_name[50];
+    char command[128];
+    struct alias_list* next;
+};
+struct alias_list* head=NULL;
+/* Given a reference (pointer to pointer) to the head
+  of a list and an int, push a new node on the front
+  of the list. */
+void deleteCommand(char*);
+void push( char* alias_name, char* command)
+{
+    /* allocate node */
+    deleteCommand(alias_name);
+    struct alias_list* new_node =
+            (struct alias_list*) malloc(sizeof(struct alias_list));
+
+    /* put in the key  */
+    strcpy(new_node->alias_name,alias_name);
+
+    strcpy(new_node->command,command);
+
+    /* link the old list off the new node */
+    new_node->next = head;
+
+    /* move the head to point to the new node */
+    head= new_node;
+}
+
+/* Checks whether the value x is present in linked list */
+int search(char** alias_name,char* command)
+{
+    struct alias_list* current = head;  // Initialize current
+    while (current != NULL)
+    {
+        if (strcmp(current->alias_name,alias_name[0])==0){
+            strcpy(command,current->command);
+            int i;
+            if(alias_name[1]!=NULL){
+
+
+              for (i = 0; command[i]!='\n'; i++);
+              command[i]='\0';
+
+              for (size_t j = 1; alias_name[j]!=NULL; j++) {
+                strcat(command," ");
+                strcat(command,alias_name[j]);
+              }
+
+              strcat(command,"\n");
+            }
+            return 1;
+        }
+        current = current->next;
+    }
+    return 0;
+}
+void deleteCommand(char* alias_name)
+{
+    // Store head node
+    struct alias_list* temp = head, *prev;
+
+    // If head node itself holds the key to be deleted
+    if (temp != NULL && strcmp(temp->alias_name,alias_name)==0 )
+    {
+        head = temp->next;   // Changed head
+        free(temp);               // free old head
+        return;
+    }
+
+    // Search for the key to be deleted, keep track of the
+    // previous node as we need to change 'prev->next'
+    while (temp != NULL && strcmp(temp->alias_name,alias_name)!=0 )
+    {
+        prev = temp;
+        temp = temp->next;
+    }
+
+    // If key was not present in linked list
+    if (temp == NULL) return;
+
+    // Unlink the node from linked list
+    prev->next = temp->next;
+
+    free(temp);  // Free memory
+}
+void print_alias_list(){
+  struct alias_list* temp_head=head;
+  while(temp_head!=NULL){
+    printf("Alias name: %s  ---  CommandName: %s \n",temp_head->alias_name,temp_head->command);
+    temp_head=temp_head->next;
+  }
+}
+void alias_list(char *input){
+  char command[128];
+  char alias_name[50];
+  int cond=0;
+  int j=0;
+  int i;
+
+    for (i = 0; i<strlen(input); i++) {
+      if(input[i]=='"'){
+        cond++;
+        continue;
+      }
+      if(cond==1){
+        command[j]=input[i];
+        j++;
+      }
+      if(cond==2){
+        command[j]='\n'; // we put this because we will send these string into setup function for getting arguments array.
+        command[j+1]='\0';
+        break;
+      }
+    }
+    if(strlen(command)==0){
+      perror("Invalid input. Please enter command inside double quotes.");
+      return;
+    }
+    int test=1;
+    for (size_t i = 0; i <strlen(command); i++) {
+      if(command[i]==' ')
+        test++;
+    }
+    if(test==strlen(command)){
+      perror("Invalid input. Please enter command inside double quotess");
+      return;
+    }
+
+    if(cond!=2){
+      perror("Invalid input. There must be only 2 double quotes" );
+      return;
+    }
+    j=0;
+    cond=0;
+    for (i = 0; i<strlen(input)-1; i++) {
+      if(input[i]=='"'){
+        cond++;
+        continue;
+      }
+      if(input[i]=='\n')
+        break;
+      if(cond>=2){
+        if(input[i]==' '&&cond==2){
+          cond++;
+          continue;
+        }else if(cond==2){
+          perror("You must put white spaces after this \" sign");
+          return;
+        }
+
+        alias_name[j]=input[i];
+        j++;
+      }
+    }
+    alias_name[j]='\0';
+
+    //printf("%s---------------%s\n",alias_name,command );
+    if(strcmp(alias_name,"alias")==0||strcmp(alias_name,"unalias")==0||strlen(alias_name)==0||strstr(alias_name," ")!=NULL){ //ERROR checks of alias name
+      perror("please enter valid alias name");
+      return;
+    }
+    if(strcmp(command,"alias\n")==0||strcmp(command,"unalias\n")==0){ //ERROR checks of alias name
+      perror("please enter valid command name");
+      return;
+    }
+
+  push(alias_name,command);
+}
