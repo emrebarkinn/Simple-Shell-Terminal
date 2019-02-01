@@ -8,6 +8,22 @@ Our shell also supports pipes "|" and input redirections ">,<,>>,<<,2>". And all
 For executing linux command we use execl, and we do not use system() function for calling linux commands.
 We use system() function only in our clr and exit command.
 
-Some outputs of program:  
+Some outputs of program: 
 
+![image001](images/image001.jpg)
+
+
+![image002](images/image002.jpg)
+
+
+![image003](images/image003.jpg)
+
+
+![image004](images/image004.jpg)
+
+
+![image005](images/image005.jpg)
+
+
+![image006](images/image006.jpg)
 
